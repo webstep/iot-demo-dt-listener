@@ -1,0 +1,226 @@
+importScripts = require('./importscripts.js').importScripts;
+importScripts('./apikey.ns');
+let XMLHttpRequest = require('xmlhttprequest').XMLHttpRequest;
+
+const debug = true;
+const isMalaHome = false; // if listenForEvents is runing on MacMala in MalaHome
+const isMacMala = true; // if listenForEvents is running on MacMala in the office
+
+// The ID of the DT sensors to listen for events for
+const THINGSID_TOUCH_1 = '206744835';
+const THINGSID_TOUCH_2 = '206747778';
+const THINGSID_TOUCH_3 = '206889733';
+
+const THINGSID_TOUCH_1_VS = 'vs_touch_1';
+const THINGSID_TOUCH_2_VS = 'vs_touch_2';
+const THINGSID_TOUCH_3_VS = 'vs_touch_3';
+
+const THINGSID_PROX_1 = 'proximity_1';
+const THINGSID_PROX_1_VS = 'vs_proximity_1';
+const THINGSID_PROX_2 = 'proximity_2';
+const THINGSID_PROX_2_VS = 'vs_proximity_2';
+
+const THINGSID_TEMP_1 = 'temperature_1';
+const THINGSID_TEMP_1_VS = 'vs_temperature_1';
+
+let baseUrl_openhab_server = 'http://localhost:8080/rest/items/';
+let LAMP_COLOR_1 = 'ColorLamp1_Color';
+
+if (isMacMala) {
+    baseUrl_openhab_server = 'http://192.168.1.140:8080/rest/items/'; // raspberrypizw2
+}
+
+if (isMalaHome) {
+    LAMP_COLOR_1 = 'KontorSpot1_Color';
+    baseUrl_openhab_server = 'http://malabook:8080/rest/items/';
+}
+
+const LAMP_LYSORGEL_DURATION = 500; // on for 0.5 seconds
+const LAMP_ALARM_DURATION = 1000; // on for 1 second
+const LAMP_ALARM_COUNTLOOP = 3; // Alarm blinking 3 times
+
+let isLampInUse = false;
+
+// Some colors to use on the HSB-setting of the HUE Color lamps
+// See http://colorizer.org for an explanation and to generate sample colours
+// H = Hue (Color) [0,360]
+// S = Saturation [0,100]
+// B = Brightness [0,100]
+const COLOR_GREEN = 120;
+const COLOR_BLUE = 240;
+const COLOR_RED = 360;
+const COLOR_YELLOW = 60;
+const COLOR_PINK = 300;
+const COLOR_ORANGE = 30;
+const COLOR_PURPLE = 270;
+
+let EventSource = require("eventsource");
+
+let es = new EventSource("https://api.disruptive-technologies.com/v1/subscribe?apikey=" + ApiKey +
+    "&thing_ids=" + THINGSID_TOUCH_1 +
+    "&thing_ids=" + THINGSID_TOUCH_1_VS +
+    "&thing_ids=" + THINGSID_TOUCH_2 +
+    "&thing_ids=" + THINGSID_TOUCH_2_VS +
+    "&thing_ids=" + THINGSID_TOUCH_3 +
+    "&thing_ids=" + THINGSID_TOUCH_3_VS +
+    "&thing_ids=" + THINGSID_TEMP_1 +
+    "&thing_ids=" + THINGSID_TEMP_1_VS +
+    "&thing_ids=" + THINGSID_PROX_1 +
+    "&thing_ids=" + THINGSID_PROX_1_VS +
+    "&thing_ids=" + THINGSID_PROX_2 +
+    "&thing_ids=" + THINGSID_PROX_2_VS
+    );
+
+es.onmessage = function (data) {
+    let jsonData = JSON.parse(data['data']);
+    if (debug) {
+        console.log("jsonData: ", jsonData);
+    }
+
+    let doBlinkRedLamp = false;
+    let doBlinkGreenLamp = false;
+    let doBlinkBlueLamp = false;
+    let doBlinkAlarm = false;
+    let doBlinkDoor = false;
+
+    let ts = jsonData.result.timestamp;
+    let thingId = jsonData.result.thing_id;
+    let event_type = jsonData.result.state_changed.event_type;
+
+    if (debug) {
+        console.log('TimeStamp: ' + ts + 'Checking thingId: ' + thingId + ", event_type: '" + event_type + "' ");
+    }
+
+    if (event_type === 'timer') {
+        if (debug) {
+            console.log('Ignoring timer-events');
+        }
+    } else {
+        if (thingId === THINGSID_TOUCH_1 || thingId === THINGSID_TOUCH_1_VS) {
+            doBlinkRedLamp = true;
+        } else if (thingId === THINGSID_TOUCH_2 || thingId === THINGSID_TOUCH_2_VS) {
+            doBlinkGreenLamp = true;
+        } else if (thingId === THINGSID_TOUCH_3 || thingId === THINGSID_TOUCH_3_VS) {
+            doBlinkBlueLamp = true;
+        } else if (thingId === THINGSID_PROX_1 || thingId === THINGSID_PROX_1_VS) {
+            doBlinkAlarm = true;
+        } else if (thingId === THINGSID_PROX_2 || thingId === THINGSID_PROX_2_VS) {
+            doBlinkDoor = true;
+        } else if (thingId === THINGSID_TEMP_1 || thingId === THINGSID_TEMP_1_VS) {
+            doBlinkBlueLamp = true;
+        }
+    }
+
+    if (doBlinkRedLamp) {
+        blinkLamp(COLOR_RED);
+    } else if (doBlinkGreenLamp) {
+        blinkLamp(COLOR_GREEN);
+    } else if (doBlinkBlueLamp) {
+        blinkLamp(COLOR_BLUE);
+    } else if (doBlinkAlarm) {
+        blinkAlarmLamp();
+    } else if (doBlinkDoor) {
+        blinkLamp(COLOR_ORANGE);
+    } else {
+        if (debug) {
+            console.log('Nada to blink for thingId: ' + thingId + "for event '" + event_type + "' ");
+        }
+    }
+};
+
+es.onerror = function (e) {
+    console.log("An error occurred: ", e);
+};
+
+function blinkAlarmLamp() {
+    let count = 0;
+    let duration = LAMP_ALARM_DURATION;
+    let maxCount = LAMP_ALARM_COUNTLOOP;
+    // console.log('Send command to openHab for blinking LAMP_NOISE in color RED ' + maxCount + ' times for ' + duration + ' second');
+    if (isLampInUse) {
+        if (debug) {
+            console.log('LAMP_NOISE is in use');
+        }
+        return;
+    }
+    isLampInUse = true;
+    // updateVirtualSensor_setObjectPresent(thingId_noise_counter, true);
+    alarmRecursive(LAMP_COLOR_1, COLOR_RED, maxCount, count, duration);
+}
+
+function alarmRecursive(hueId, color, maxCount, count, duration) {
+    setTimeout(() => {
+        if (count >= maxCount) {
+            isLampInUse = false;
+            // updateVirtualSensor_setObjectPresent(thingId_noise_counter, false);
+            return;
+        }
+        count++;
+        sendCommand(LAMP_NOISE, RED + ',75,75');
+        setTimeout(() => {
+            sendCommand(LAMP_NOISE, 'OFF');
+            alarmRecursive(hueId, color, maxCount, count, duration);
+        }, duration);
+    }, duration);
+}
+
+function blinkLamp(color) {
+    if (isLampInUse) {
+        return;
+    }
+    sendCommand(LAMP_COLOR_1, color + ',75,75');
+    setTimeout(() => {
+        sendCommand(LAMP_COLOR_1, 'OFF');
+    }, LAMP_LYSORGEL_DURATION);
+}
+
+function sendCommand(hueId, command) {
+    let xhr_sendCommand = new XMLHttpRequest();
+    xhr_sendCommand.withCredentials = true;
+    xhr_sendCommand.addEventListener("readystatechange", function () {
+        if (this.readyState === 4) {
+            let res = this.responseText;
+            if (debug) {
+                console.log("Response: ", res);
+            }
+            if (hueId === LAMP_COLOR_1 && command === 'OFF') {
+                isLampInUse = false;
+            }
+        }
+    });
+
+    xhr_sendCommand.open('POST', baseUrl_openhab_server + hueId);
+    xhr_sendCommand.setRequestHeader("accept", "application/json");
+    xhr_sendCommand.send(command);
+}
+
+function updateVirtualSensor_setObjectPresent(thingId, trueOrFalse) {
+    let xhr_noise_counter = new XMLHttpRequest();
+    xhr_noise_counter.withCredentials = true;
+
+    let SetObjectPresentRequest = {
+        "thing_id": '"' + thingId + '"',
+        "objectPresent": trueOrFalse
+    };
+
+    xhr_noise_counter.addEventListener("readystatechange", function () {
+        if (this.readyState === 4) {
+            let response = JSON.parse(this.responseText);
+            if (debug) {
+                console.log("Response:\n", response);
+                console.log("Updated virtual sensor: " + thingId + " to objectPresent = " + trueOrFalse);
+            }
+        }
+    });
+
+    /* set-object-present for sensor */
+    if (debug) {
+        console.log("Updating virtual sensor: " + thingId + " => objectPresent: " + trueOrFalse);
+    }
+    xhr_noise_counter.open("POST", "https://virtual-sensor.disruptive-technologies.com/v1/virtual-sensors/" + thingId + "/set-object-present");
+    xhr_noise_counter.setRequestHeader("authorization", "ApiKey " + ApiKey);
+    xhr_noise_counter.setRequestHeader("accept", "text/json");
+    xhr_noise_counter.setRequestHeader("cache-control", "no-cache");
+    xhr_noise_counter.send(JSON.stringify(SetObjectPresentRequest));
+
+}
