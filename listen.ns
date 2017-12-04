@@ -20,22 +20,22 @@ const LAMP_ALARM_DURATION = 750; // on for 0,75 second
 const LAMP_ALARM_COUNTLOOP = 5; // Alarm blinking 3 times
 
 const debug = true;
-const isMalaHome = false; // if listenForEvents is runing on MacMala in MalaHome
-const isMacMala = true; // if listenForEvents is running on MacMala in the office
+const isMalaHome = true; // if listenForEvents is runing on MacMala in MalaHome
+const isMacMala = false; // if listenForEvents is running on MacMala in the office
 
 // The ID of the DT sensors to listen for events for
 const THINGSID_TOUCH_1 = '206744835';
 const THINGSID_TOUCH_2 = '206747778';
 const THINGSID_TOUCH_3 = '206889733';
 
-const THINGSID_TOUCH_1_VS = 'vs_touch_1';
-const THINGSID_TOUCH_2_VS = 'vs_touch_2';
-const THINGSID_TOUCH_3_VS = 'vs_touch_3';
+const THINGSID_TOUCH_1_VS = 'b8ip2ddnqumg00av60q0';
+const THINGSID_TOUCH_2_VS = 'b8ip3kmrtm9000cum3ng';
+const THINGSID_TOUCH_3_VS = 'b8ip458tbjmg009m3bi0';
 
 const THINGSID_PROX_1 = '206878213'; // ALARM - Multirom 2 Proximity
-const THINGSID_PROX_1_VS = 'vs_proximity_1';
+const THINGSID_PROX_1_VS = 'b8ip8omrtm9000cum3o0';
 const THINGSID_PROX_2 = '206855046'; // DØR - Multirom 1 Proximity
-const THINGSID_PROX_2_VS = 'vs_proximity_2';
+const THINGSID_PROX_2_VS = 'b8ipdg6rtm9000cum3og';
 
 const THINGSID_TEMP_1 = '206847879'; // TEMP - Multirom 2 Temp
 const THINGSID_TEMP_1_VS = 'vs_temperature_1';
@@ -54,6 +54,8 @@ if (isMacMala) {
 
 if (isMalaHome) {
     LAMP_COLOR_1 = 'KontorSpot1_Color';
+    LAMP_COLOR_2 = 'KontorSpot2_Color';
+    LAMP_COLOR_3 = 'KontorSpot3_Color';
     baseUrl_openhab_server = 'http://malabook:8080/rest/items/';
 }
 
@@ -209,7 +211,7 @@ function blinkLamp1() {
         console.log('Lamp "' + LAMP_COLOR_1 + '" is in use, ignoring blink');
         return;
     }
-    sendCommand(LAMP_COLOR_1, COLOR_PINK + ',100,100');
+    sendCommand(LAMP_COLOR_1, COLOR_PINK + ',100,75');
     setTimeout(() => {
         sendCommand(LAMP_COLOR_1, 'OFF');
         isLamp1InUse = false;
@@ -222,7 +224,7 @@ function blinkLamp2() {
         console.log('Lamp "' + LAMP_COLOR_2 + '" is in use, ignoring blink');
         return;
     }
-    sendCommand(LAMP_COLOR_2, COLOR_PURPLE + ',100,100');
+    sendCommand(LAMP_COLOR_2, COLOR_PURPLE + ',100,75');
     setTimeout(() => {
         sendCommand(LAMP_COLOR_2, 'OFF');
         isLamp2InUse = false;
@@ -235,7 +237,7 @@ function blinkLamp3() {
         console.log('Lamp "' + LAMP_COLOR_3 + '" is in use, ignoring blink');
         return;
     }
-    sendCommand(LAMP_COLOR_3, COLOR_BLUE + ',100,100');
+    sendCommand(LAMP_COLOR_3, COLOR_BLUE + ',100,75');
     setTimeout(() => {
         sendCommand(LAMP_COLOR_3, 'OFF');
         isLamp3InUse = false;

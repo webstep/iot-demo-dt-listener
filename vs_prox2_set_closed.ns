@@ -1,0 +1,28 @@
+importScripts=require('./importscripts.js').importScripts;
+importScripts('./apikey.ns');
+
+let XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
+let xhr = new XMLHttpRequest();
+xhr.withCredentials = true;
+
+let thingId_vs_proximity_2 = "b8ipdg6rtm9000cum3og";
+let thingId = thingId_vs_proximity_2;
+
+let SetObjectPresentRequest_true = {
+    "thing_id": thingId,
+    "objectPresent": true
+};
+
+xhr.addEventListener("readystatechange", function() {
+    if (this.readyState === 4) {
+        let response = JSON.parse(this.responseText);
+        console.log("Response:\n", response);
+    }
+});
+
+/* set object_present FALSE*/
+xhr.open("POST", "https://virtual-sensor.disruptive-technologies.com/v1/virtual-sensors/" + thingId +  "/set-object-present");
+xhr.setRequestHeader("authorization", "ApiKey " + ApiKey);
+xhr.setRequestHeader("accept", "text/json");
+xhr.setRequestHeader("cache-control", "no-cache");
+xhr.send(JSON.stringify(SetObjectPresentRequest_true));

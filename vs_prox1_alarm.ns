@@ -1,0 +1,67 @@
+importScripts=require('./importscripts.js').importScripts;
+importScripts('./apikey.ns');
+
+let XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
+let xhr = new XMLHttpRequest();
+xhr.withCredentials = true;
+
+let thingId_vs_proximity_1 = "b8ip8omrtm9000cum3o0";
+let thingId = thingId_vs_proximity_1;
+
+let SetObjectPresentRequest_false = {
+    "thing_id": thingId,
+    "objectPresent": false
+};
+let SetObjectPresentRequest_true = {
+    "thing_id": thingId,
+    "objectPresent": true
+};
+
+xhr.addEventListener("readystatechange", function() {
+    if (this.readyState === 4) {
+        let response = JSON.parse(this.responseText);
+        console.log("Response:\n", response);
+    }
+});
+
+/* set object_present TRUE*/
+xhr.open("POST", "https://virtual-sensor.disruptive-technologies.com/v1/virtual-sensors/" + thingId +  "/set-object-present");
+xhr.setRequestHeader("authorization", "ApiKey " + ApiKey);
+xhr.setRequestHeader("accept", "text/json");
+xhr.setRequestHeader("cache-control", "no-cache");
+xhr.send(JSON.stringify(SetObjectPresentRequest_true));
+
+setTimeout(() => {
+    /* set object_present FALSE*/
+    let xhr1 = new XMLHttpRequest();
+    xhr1.withCredentials = true;
+    xhr1.addEventListener("readystatechange", function() {
+        if (this.readyState === 4) {
+            let response = JSON.parse(this.responseText);
+            console.log("Response:\n", response);
+        }
+    });
+    xhr1.open("POST", "https://virtual-sensor.disruptive-technologies.com/v1/virtual-sensors/" + thingId +  "/set-object-present");
+    xhr1.setRequestHeader("authorization", "ApiKey " + ApiKey);
+    xhr1.setRequestHeader("accept", "text/json");
+    xhr1.setRequestHeader("cache-control", "no-cache");
+    xhr1.send(JSON.stringify(SetObjectPresentRequest_false));
+
+    setTimeout(() => {
+        /* set object_present TRUE*/
+        let xhr2 = new XMLHttpRequest();
+        xhr2.withCredentials = true;
+        xhr2.addEventListener("readystatechange", function() {
+            if (this.readyState === 4) {
+                let response = JSON.parse(this.responseText);
+                console.log("Response:\n", response);
+            }
+        });
+        xhr2.open("POST", "https://virtual-sensor.disruptive-technologies.com/v1/virtual-sensors/" + thingId +  "/set-object-present");
+        xhr2.setRequestHeader("authorization", "ApiKey " + ApiKey);
+        xhr2.setRequestHeader("accept", "text/json");
+        xhr2.setRequestHeader("cache-control", "no-cache");
+        xhr2.send(JSON.stringify(SetObjectPresentRequest_true));
+    }, 10000)
+
+}, 5000);

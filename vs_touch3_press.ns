@@ -1,0 +1,43 @@
+importScripts=require('./importscripts.js').importScripts;
+importScripts('./apikey.ns');
+
+const base_url = "https://virtual-sensor.disruptive-technologies.com/v1/virtual-sensors/";
+const debug = true;
+const COMMAND_PRESS = "/press";
+const COMMAND_RELEASE = "/release";
+
+let XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
+
+let thingId_vs_touch3 = "b8ip458tbjmg009m3bi0";
+let thingId = thingId_vs_touch3;
+
+let request = {
+    "thing_id": thingId
+};
+
+sendCommand(thingId, request, COMMAND_PRESS);
+setTimeout(() => {
+        sendCommand(thingId, request, COMMAND_RELEASE);
+    },
+    500);
+
+function sendCommand(thingId, request, command) {
+    let xhr = new XMLHttpRequest();
+    xhr.withCredentials = true;
+
+    xhr.addEventListener("readystatechange", function() {
+        if (this.readyState === 4) {
+            let res = this.responseText;
+            if (debug) {
+                console.log("Response: ", res);
+            }
+        }
+    });
+
+    xhr.open("POST", base_url  + thingId + command);
+    xhr.setRequestHeader("authorization", "ApiKey " + ApiKey);
+    xhr.setRequestHeader("accept", "text/json");
+    xhr.setRequestHeader("cache-control", "no-cache");
+    xhr.send(JSON.stringify(request));
+}
+
