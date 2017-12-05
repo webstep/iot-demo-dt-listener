@@ -19,9 +19,9 @@ const LAMP_LYSORGEL_DURATION = 1500; // on for 0.5 seconds
 const LAMP_ALARM_DURATION = 750; // on for 0,75 second
 const LAMP_ALARM_COUNTLOOP = 5; // Alarm blinking 3 times
 
-const debug = true;
-const isMalaHome = true; // if listenForEvents is runing on MacMala in MalaHome
-const isMacMala = false; // if listenForEvents is running on MacMala in the office
+const debug = false;
+const isMalaHome = false; // if listenForEvents is runing on MacMala in MalaHome
+const isMacMala = true; // if listenForEvents is running on MacMala in the office
 
 // The ID of the DT sensors to listen for events for
 const THINGSID_TOUCH_1 = '206744835';
@@ -56,6 +56,7 @@ if (isMalaHome) {
     LAMP_COLOR_1 = 'KontorSpot1_Color';
     LAMP_COLOR_2 = 'KontorSpot2_Color';
     LAMP_COLOR_3 = 'KontorSpot3_Color';
+    LAMP_NOISE   = 'KontorSpot1_Color';
     baseUrl_openhab_server = 'http://malabook:8080/rest/items/';
 }
 
@@ -96,7 +97,7 @@ let es = new EventSource("https://api.disruptive-technologies.com/v1/subscribe?a
 es.onmessage = function (data) {
     let jsonData = JSON.parse(data['data']);
     if (debug) {
-        console.log("jsonData: ", jsonData);
+        console.log(ts() + " jsonData: ", jsonData);
     }
 
     let doBlinkPinkLamp = false;
@@ -106,18 +107,18 @@ es.onmessage = function (data) {
     let doBlinkDoor = false;
     let doorIsClosed = false;
 
-    let ts = jsonData.result.timestamp;
     let thingId = jsonData.result.thing_id;
     let event_type = jsonData.result.state_changed.event_type;
 
     if (debug) {
+        //const ts = jsonData.result.timestamp;
         //console.log('TimeStamp: ' + ts + 'Checking thingId: ' + thingId + ", event_type: '" + event_type + "' ");
         //console.log('JSON-data: \n' + JSON.stringify(jsonData.result));
     }
 
     if (event_type === 'timer') {
         if (debug) {
-            console.log('Ignoring timer-events');
+            console.log(ts() + ' Ignoring timer-events');
         }
     } else {
         if (thingId === THINGSID_TOUCH_1 || thingId === THINGSID_TOUCH_1_VS) {
@@ -127,9 +128,18 @@ es.onmessage = function (data) {
         } else if (thingId === THINGSID_TOUCH_3 || thingId === THINGSID_TOUCH_3_VS) {
             doBlinkBlueLamp = true;
         } else if (thingId === THINGSID_PROX_1 || thingId === THINGSID_PROX_1_VS) {
-            doBlinkAlarm = true;
+            if (jsonData.result.state_changed.object_present || ('true' === jsonData.result.state_changed.object_present)) {
+                if (debug) {
+                    console.log(ts() + ' No alarm as long as object_present === TRUE');
+                }
+            } else {
+                if (debug) {
+                    console.log('object_present is FALSE' + jsonData.result.state_changed.object_present);
+                }
+                doBlinkAlarm = true;
+            }
         } else if (thingId === THINGSID_PROX_2 || thingId === THINGSID_PROX_2_VS) {
-            if (jsonData.result.state_changed.object_present === 'true') {
+            if (jsonData.result.state_changed.object_present || ('true' === jsonData.result.state_changed.object_present ) ) {
                 if (doorIsClosed) {
                     // no change in status
                 } else {
@@ -167,26 +177,29 @@ es.onmessage = function (data) {
         }
     } else {
         if (debug) {
-            console.log('Nada to blink for thingId: ' + thingId + "for event '" + event_type + "' ");
+            console.log(ts() + ' Nada to blink for thingId: ' + thingId + "for event '" + event_type + "' ");
         }
     }
 };
 
 es.onerror = function (e) {
-    console.log("An error occurred: ", e);
+    console.log(ts() + " An error occurred: ", e);
 };
 
 function blinkAlarmLamp() {
     let count = 0;
     let duration = LAMP_ALARM_DURATION;
     let maxCount = LAMP_ALARM_COUNTLOOP;
-    console.log('Send command to openHab for blinking LAMP_NOISE in color RED ' + maxCount + ' times for ' + duration + ' second');
-    if (isLamp1InUse()) {
+    if (debug) {
+        console.log('Send command to openHab for blinking ' + LAMP_NOISE +' in color RED ' + maxCount + ' times for ' + duration + ' second');
+    }
+    if (isLamp1InUse) {
         if (debug) {
-            console.log('LAMP_NOISE is in use');
+            console.log(ts() + ' LAMP_NOISE is in use');
         }
         return;
     }
+    isLamp1InUse = true;
     alarmRecursive(LAMP_NOISE, COLOR_RED, maxCount, count, duration);
 }
 
@@ -206,11 +219,16 @@ function alarmRecursive(hueId, color, maxCount, count, duration) {
 }
 
 function blinkLamp1() {
-    console.log('Trying to blink Lamp "' + LAMP_COLOR_1 + '"');
+    if (debug) {
+        console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_1 + '"');
+    }
     if (isLamp1InUse) {
-        console.log('Lamp "' + LAMP_COLOR_1 + '" is in use, ignoring blink');
+        if (debug) {
+            console.log(ts() + ' Lamp "' + LAMP_COLOR_1 + '" is in use, ignoring blink');
+        }
         return;
     }
+    isLamp1InUse = true;
     sendCommand(LAMP_COLOR_1, COLOR_PINK + ',100,75');
     setTimeout(() => {
         sendCommand(LAMP_COLOR_1, 'OFF');
@@ -219,11 +237,16 @@ function blinkLamp1() {
 }
 
 function blinkLamp2() {
-    console.log('Trying to blink Lamp "' + LAMP_COLOR_2 + '"');
+    if (debug) {
+        console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_2 + '"');
+    }
     if (isLamp2InUse) {
-        console.log('Lamp "' + LAMP_COLOR_2 + '" is in use, ignoring blink');
+        if (debug) {
+            console.log(ts() + ' Lamp "' + LAMP_COLOR_2 + '" is in use, ignoring blink');
+        }
         return;
     }
+    isLamp2InUse = true;
     sendCommand(LAMP_COLOR_2, COLOR_PURPLE + ',100,75');
     setTimeout(() => {
         sendCommand(LAMP_COLOR_2, 'OFF');
@@ -232,77 +255,22 @@ function blinkLamp2() {
 }
 
 function blinkLamp3() {
-    console.log('Trying to blink Lamp "' + LAMP_COLOR_3 + '"');
+    if (debug) {
+        console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_3 + '"');
+    }
     if (isLamp3InUse) {
-        console.log('Lamp "' + LAMP_COLOR_3 + '" is in use, ignoring blink');
+        if (debug) {
+            console.log(ts() + ' Lamp "' + LAMP_COLOR_3 + '" is in use, ignoring blink');
+        }
         return;
     }
-    sendCommand(LAMP_COLOR_3, COLOR_BLUE + ',100,75');
+    isLamp3InUse = true;
+    sendCommand(LAMP_COLOR_3, COLOR_BLUE + ',100,75', false);
     setTimeout(() => {
         sendCommand(LAMP_COLOR_3, 'OFF');
         isLamp3InUse = false;
     }, LAMP_LYSORGEL_DURATION);
 }
-
-function isLampInUse(lamp) {
-    switch (lamp) {
-        case LAMP_COLOR_1:
-            if (isLamp1InUse) {
-                return true;
-            } else {
-                isLamp1InUse = true;
-                return false;
-            }
-            break;
-        case LAMP_COLOR_2:
-            if (isLamp2InUse) {
-                return true;
-            } else {
-                isLamp2InUse = true;
-                return false;
-            }
-            break;
-        case LAMP_COLOR_3:
-            if (isLamp3InUse) {
-                return true;
-            } else {
-                isLamp3InUse = true;
-                return false;
-            }
-            break;
-        default:
-            console.error('Unknown lamp "' + lamp + '" specified');
-    }
-}
-
-function freeLamp(lamp) {
-    switch (lamp) {
-        case LAMP_COLOR_1:
-            if (isLamp1InUse) {
-                isLamp1InUse = false;
-            } else {
-                console.log('Lamp "' + lamp + '" is already free');
-            }
-            break;
-        case LAMP_COLOR_2:
-            if (isLamp2InUse) {
-                isLamp2InUse = false;
-            } else {
-                console.log('Lamp "' + lamp + '" is already free');
-            }
-            break;
-        case LAMP_COLOR_3:
-            if (isLamp3InUse) {
-                isLamp3InUse = false;
-            } else {
-                console.log('Lamp "' + lamp + '" is already free');
-            }
-            break;
-        default:
-            console.error('Unknown lamp "' + lamp + '" specified');
-    }
-}
-
 
 function sendCommand(hueId, command) {
     let xhr_sendCommand = new XMLHttpRequest();
@@ -311,16 +279,37 @@ function sendCommand(hueId, command) {
         if (this.readyState === 4) {
             let res = this.responseText;
             if (debug) {
-                console.log("Response: ", res);
-            }
-            if (hueId === LAMP_COLOR_1 && command === 'OFF') {
-                isLampInUse = false;
+                console.log(ts() + " Response: ", res);
             }
         }
     });
-
     xhr_sendCommand.open('POST', baseUrl_openhab_server + hueId);
     xhr_sendCommand.setRequestHeader("accept", "application/json");
     xhr_sendCommand.send(command);
+}
+
+function ts() {
+    let d = new Date();
+    return date2str_NO(d);
+}
+function date2str_NO(d) {
+    let s = fix2digit(d.getDate()) + '.' + fixMonth(d.getMonth()) + '.' + d.getFullYear() + ' ' +
+        fix2digit(d.getHours()) + ':' + fix2digit(d.getMinutes()) + ':' + fix2digit(d.getSeconds());
+    return s;
+}
+function fixMonth(num) {
+    let month = num + 1;
+    if (month < 10) {
+        return '0' + month;
+    } else {
+        return '' + month;
+    }
+}
+function fix2digit(num) {
+    if (num < 10) {
+        return '0' + num;
+    } else {
+        return '' + num;
+    }
 }
 
