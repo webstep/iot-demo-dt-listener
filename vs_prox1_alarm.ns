@@ -64,4 +64,4 @@ setTimeout(() => {
         xhr2.send(JSON.stringify(SetObjectPresentRequest_true));
     }, 10000)
 
-}, 5000);
+}, 1000);

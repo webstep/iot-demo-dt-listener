@@ -16,12 +16,12 @@ importScripts('./apikey.ns');
 let XMLHttpRequest = require('xmlhttprequest').XMLHttpRequest;
 
 const LAMP_LYSORGEL_DURATION = 1500; // on for 0.5 seconds
+const LAMP_DOOR_DURATION = 1000;
 const LAMP_ALARM_DURATION = 750; // on for 0,75 second
 const LAMP_ALARM_COUNTLOOP = 5; // Alarm blinking 3 times
 
-const debug = false;
+const debug = true;
 const isMalaHome = false; // if listenForEvents is runing on MacMala in MalaHome
-const isMacMala = true; // if listenForEvents is running on MacMala in the office
 
 // The ID of the DT sensors to listen for events for
 const THINGSID_TOUCH_1 = '206744835';
@@ -32,12 +32,12 @@ const THINGSID_TOUCH_1_VS = 'b8ip2ddnqumg00av60q0';
 const THINGSID_TOUCH_2_VS = 'b8ip3kmrtm9000cum3ng';
 const THINGSID_TOUCH_3_VS = 'b8ip458tbjmg009m3bi0';
 
-const THINGSID_PROX_1 = '206878213'; // ALARM - Multirom 2 Proximity
+const THINGSID_PROX_1 = '206878213'; // ALARM - Moterom Proximity
 const THINGSID_PROX_1_VS = 'b8ip8omrtm9000cum3o0';
-const THINGSID_PROX_2 = '206855046'; // DØR - Multirom 1 Proximity
+const THINGSID_PROX_2 = '206855046'; // DØR - Multirom Proximity
 const THINGSID_PROX_2_VS = 'b8ipdg6rtm9000cum3og';
 
-const THINGSID_TEMP_1 = '206847879'; // TEMP - Multirom 2 Temp
+const THINGSID_TEMP_1 = '206847879'; // TEMP - Lab Temp
 const THINGSID_TEMP_1_VS = 'vs_temperature_1';
 
 let baseUrl_openhab_server = 'http://localhost:8080/rest/items/';
@@ -46,11 +46,6 @@ let LAMP_COLOR_2 = 'ColorLamp2_Color';
 let LAMP_COLOR_3 = 'ColorLamp3_Color';
 
 let LAMP_NOISE = 'ColorLamp1_Color';
-
-
-if (isMacMala) {
-    baseUrl_openhab_server = 'http://192.168.1.211:8080/rest/items/'; // raspberrypizw2
-}
 
 if (isMalaHome) {
     LAMP_COLOR_1 = 'KontorSpot1_Color';
@@ -78,6 +73,7 @@ const COLOR_ORANGE = 30;
 const COLOR_PURPLE = 270;
 
 let EventSource = require("eventsource");
+let doorIsClosed = false;
 
 let es = new EventSource("https://api.disruptive-technologies.com/v1/subscribe?apikey=" + ApiKey +
     "&thing_ids=" + THINGSID_TOUCH_1 +
@@ -105,7 +101,6 @@ es.onmessage = function (data) {
     let doBlinkBlueLamp = false;
     let doBlinkAlarm = false;
     let doBlinkDoor = false;
-    let doorIsClosed = false;
 
     let thingId = jsonData.result.thing_id;
     let event_type = jsonData.result.state_changed.event_type;
@@ -127,6 +122,7 @@ es.onmessage = function (data) {
             doBlinkPurpleLamp = true;
         } else if (thingId === THINGSID_TOUCH_3 || thingId === THINGSID_TOUCH_3_VS) {
             doBlinkBlueLamp = true;
+
         } else if (thingId === THINGSID_PROX_1 || thingId === THINGSID_PROX_1_VS) {
             if (jsonData.result.state_changed.object_present || ('true' === jsonData.result.state_changed.object_present)) {
                 if (debug) {
@@ -138,16 +134,18 @@ es.onmessage = function (data) {
                 }
                 doBlinkAlarm = true;
             }
+
         } else if (thingId === THINGSID_PROX_2 || thingId === THINGSID_PROX_2_VS) {
             if (jsonData.result.state_changed.object_present || ('true' === jsonData.result.state_changed.object_present ) ) {
+                // object_present TRUE
                 if (doorIsClosed) {
                     // no change in status
                 } else {
                     // door is being closed
-                    doBlinkDoor = true;
                     doorIsClosed = true;
                 }
             } else {
+                // object_present FALSE
                 if (doorIsClosed) {
                     // door is being opened
                     doBlinkDoor = true;
@@ -156,8 +154,6 @@ es.onmessage = function (data) {
                     // No change in status
                 }
             }
-        } else if (thingId === THINGSID_TEMP_1 || thingId === THINGSID_TEMP_1_VS) {
-            doBlinkBlueLamp = true;
         }
     }
 
@@ -171,9 +167,9 @@ es.onmessage = function (data) {
         blinkAlarmLamp();
     } else if (doBlinkDoor) {
         if (doorIsClosed) {
-            blinkLamp(LAMP_COLOR_1, COLOR_GREEN);
+            blinkLamp_DoorIsClosed();
         } else {
-            blinkLamp(LAMP_COLOR_1, COLOR_YELLOW);
+            blinkLamp_DoorIsOpened();
         }
     } else {
         if (debug) {
@@ -265,11 +261,47 @@ function blinkLamp3() {
         return;
     }
     isLamp3InUse = true;
-    sendCommand(LAMP_COLOR_3, COLOR_BLUE + ',100,75', false);
+    sendCommand(LAMP_COLOR_3, COLOR_BLUE + ',100,75');
     setTimeout(() => {
         sendCommand(LAMP_COLOR_3, 'OFF');
         isLamp3InUse = false;
     }, LAMP_LYSORGEL_DURATION);
+}
+
+function blinkLamp_DoorIsClosed() {
+    if (debug) {
+        console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_3 + '"');
+    }
+    if (isLamp3InUse) {
+        if (debug) {
+            console.log(ts() + ' Lamp "' + LAMP_COLOR_3 + '" is in use, ignoring blink');
+        }
+        return;
+    }
+    isLamp3InUse = true;
+    sendCommand(LAMP_COLOR_3, COLOR_YELLOW + ',100,75');
+    setTimeout(() => {
+        sendCommand(LAMP_COLOR_3, 'OFF');
+        isLamp3InUse = false;
+    }, LAMP_DOOR_DURATION);
+}
+
+function blinkLamp_DoorIsOpened() {
+    if (debug) {
+        console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_3 + '"');
+    }
+    if (isLamp3InUse) {
+        if (debug) {
+            console.log(ts() + ' Lamp "' + LAMP_COLOR_3 + '" is in use, ignoring blink');
+        }
+        return;
+    }
+    isLamp3InUse = true;
+    sendCommand(LAMP_COLOR_3, COLOR_YELLOW + ',100,75');
+    setTimeout(() => {
+        sendCommand(LAMP_COLOR_3, 'OFF');
+        isLamp3InUse = false;
+    }, LAMP_DOOR_DURATION);
 }
 
 function sendCommand(hueId, command) {
