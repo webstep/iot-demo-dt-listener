@@ -27,17 +27,12 @@ const isMalaHome = true; // if listenForEvents is runing on MacMala in MalaHome
 const THINGSID_TOUCH_1 = 'b6oiv957rihk096jph4g';
 const THINGSID_TOUCH_2 = 'b6oiv957rihk096jphh0';
 const THINGSID_TOUCH_3 = 'b6oiv957rihk096jpgsg';
-
 const THINGSID_PROX_1 = 'b6sfpst7rihg0dm4uvm0'; // ALARM
 const THINGSID_PROX_2 = 'b6sfpt57rihg0dm4v0kg'; // DØR
 const THINGSID_TEMP_1 = 'b6sfpst7rihg0dm4uvr0'; // TEMP - Lab Temp
 
 const DT_API_V2_URL = 'https://api.disruptive-technologies.com/v2beta1/projects/';
-const DT_API_V2_URL_VS = 'https://api.disruptive-technologies.com/emulator/v2beta1/projects/';
-const DT_API_V2_DEVICES = '/devices?';
-const DT_API_V2_DEVICE = '/devices/';
 const DT_API_V2_STREAM_ALL = 'devices:stream?';
-const DT_API_V2_PUBLISH = ":publish";
 
 
 let baseUrl_openhab_server = 'http://localhost:8080/rest/items/';
@@ -76,19 +71,24 @@ let EventSource = require("eventsource");
 let doorIsClosed = false;
 
 let device_ids = '' +
-    'thing_ids=' + THINGSID_TOUCH_1 +
-    '&thing_ids=' + THINGSID_TOUCH_2 +
-    '&thing_ids=' + THINGSID_TOUCH_3 +
-    '&thing_ids=' + THINGSID_TEMP_1 +
-    '&thing_ids=' + THINGSID_PROX_1 +
-    '&thing_ids=' + THINGSID_PROX_2;
+    'device_ids=' + THINGSID_TOUCH_1 +
+    '&device_ids=' + THINGSID_TOUCH_2 +
+    '&device_ids=' + THINGSID_TOUCH_3 +
+    '&device_ids=' + THINGSID_TEMP_1 +
+    '&device_ids=' + THINGSID_PROX_1 +
+    '&device_ids=' + THINGSID_PROX_2;
 
 let event_types = '' +
     'event_types=objectPresent' +
     '&event_types=touch' +
     '&event_types=temperature';
 
-let streamURL = DT_API_V2_URL + PROJECT_ID + '/' + DT_API_V2_STREAM_ALL + device_ids + "&" + event_types;
+let device_types = '' +
+    'device_types=proximity' +
+    '&device_types=touch' +
+    '&device_types=temperature';
+
+let streamURL = DT_API_V2_URL + PROJECT_ID + '/' + DT_API_V2_STREAM_ALL + device_ids + "&" + event_types + '&' + device_types;
 
 let es = new EventSource(streamURL, { headers: { Authorization: BASIC_AUTH } } );
 
