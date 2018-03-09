@@ -21,7 +21,7 @@ const LAMP_ALARM_DURATION = 750; // on for 0,75 second
 const LAMP_ALARM_COUNTLOOP = 5; // Alarm blinking 3 times
 
 const debug = true;
-const isMalaHome = true; // if listenForEvents is runing on MacMala in MalaHome
+const isMalaHome = false; // if listenForEvents is runing on MacMala in MalaHome
 
 // The ID of the DT sensors to listen for events for
 const THINGSID_TOUCH_1 = 'b6oiv957rihk096jph4g';
@@ -35,12 +35,12 @@ const DT_API_V2_URL = 'https://api.disruptive-technologies.com/v2beta1/projects/
 const DT_API_V2_STREAM_ALL = 'devices:stream?';
 
 
-let baseUrl_openhab_server = 'http://localhost:8080/rest/items/';
-let LAMP_COLOR_1 = 'ColorLamp1_Color';
-let LAMP_COLOR_2 = 'ColorLamp2_Color';
-let LAMP_COLOR_3 = 'ColorLamp3_Color';
+let baseUrl_openhab_server = 'http://localhost:8081/rest/items/';
+let LAMP_COLOR_1 = 'hue_0210_0017882ae962_12_color';
+let LAMP_COLOR_2 = 'hue_0210_0017882ae962_9_color';
+let LAMP_COLOR_3 = 'hue_0210_0017882ae962_10_color';
 
-let LAMP_NOISE = 'ColorLamp1_Color';
+let LAMP_NOISE = LAMP_COLOR_1;
 
 if (isMalaHome) {
     LAMP_COLOR_1 = 'KontorSpot1_Color';
