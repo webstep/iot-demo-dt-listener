@@ -1,38 +1,43 @@
 /*
 
-listen
+Listens for Server Sent Events from a given set of sensors at Disruptive Technologies REST-API
+Controls Philips HUE Lamps by calling the REST-API at a running instance of openHAB
 
-Scenario: Lysorgel
- - Blinker lys i forskjellige farger basert på hvilken touch-button som brukes
- - Størst effekt hvis den brukes sammen med en webside som spiller av lyd.
+Scenario: DingDong
+ - Lights a Lamp for x seconds.
+   Triggered by a proximity sensor emitting an Event with objectPresent.state = NOT_PRESENT, and used to be in state PRESENT.
+
+Scenario: Light Organ
+ - Lights a Lamp in different colors depending on which Touch-sensor that is used
 
 Scenario: Mona Lisa Alarm
- - blinker x ganger ved alarm. trigger er at en sensor får status object_present === false
- - størst effekt hvis den brukes sammen med en webside som spiller av lyd
+ - HUDE-lamp LAMP_ALARM Blinks LAMP_ALARM_COUNTLOOP times.
+   Triggered by a proximity sensor emitting an Event with objectPresent.state = NOT_PRESENT, and used to be in state PRESENT.
 
 */
 importScripts = require('./importscripts.js').importScripts;
 importScripts('./apikey.ns');
 let XMLHttpRequest = require('xmlhttprequest').XMLHttpRequest;
 
-const LAMP_LYSORGEL_DURATION = 1500; // on for 0.5 seconds
-const LAMP_DOOR_DURATION = 1000;
-const LAMP_ALARM_DURATION = 750; // on for 0,75 second
+const LAMP_LIGHTORGAN_DURATION = 1500; // time in ms
+const LAMP_DINGDONG_DURATION = 1000; //  time in ms
+const LAMP_ALARM_DURATION = 750; //  time in ms
 const LAMP_ALARM_COUNTLOOP = 5; // Alarm blinking 3 times
 
 const debug = true;
-const isMalaHome = false; // if listenForEvents is runing on MacMala in MalaHome
+const trace = false;
+const isMalaHome = true; // if listenForEvents is running @MalaHome
 
 // The ID of the DT sensors to listen for events for
-const THINGSID_TOUCH_1 = 'b6oiv957rihk096jph4g';
-const THINGSID_TOUCH_2 = 'b6oiv957rihk096jphh0';
-const THINGSID_TOUCH_3 = 'b6oiv957rihk096jpgsg';
-const THINGSID_PROX_1 = 'b6sfpst7rihg0dm4uvm0'; // ALARM
-const THINGSID_PROX_2 = 'b6sfpt57rihg0dm4v0kg'; // DØR
-const THINGSID_TEMP_1 = 'b6sfpst7rihg0dm4uvr0'; // TEMP - Lab Temp
+const DEVICE_ID_TOUCH_1 = 'b6oiv957rihk096jph4g'; //
+const DEVICE_ID_TOUCH_2 = 'b6oiv957rihk096jphh0';
+const DEVICE_ID_TOUCH_3 = 'b6oiv957rihk096jpgsg';
+const DEVICE_ID_PROXIMITY_ALARM = 'b6sfpst7rihg0dm4uvm0';
+const DEVICE_ID_PROXIMITY_DINGDONG = 'b6sfpt57rihg0dm4v0kg';
+const DEVICE_ID_TEMPERATURE_1 = 'b6sfpst7rihg0dm4uvr0';
 
 const DT_API_V2_URL = 'https://api.disruptive-technologies.com/v2beta1/projects/';
-const DT_API_V2_STREAM_ALL = 'devices:stream?';
+const DT_API_V2_STREAM = 'devices:stream?';
 
 
 let baseUrl_openhab_server = 'http://localhost:8081/rest/items/';
@@ -40,13 +45,10 @@ let LAMP_COLOR_1 = 'hue_0210_0017882ae962_12_color';
 let LAMP_COLOR_2 = 'hue_0210_0017882ae962_9_color';
 let LAMP_COLOR_3 = 'hue_0210_0017882ae962_10_color';
 
-let LAMP_NOISE = LAMP_COLOR_1;
-
 if (isMalaHome) {
     LAMP_COLOR_1 = 'KontorSpot1_Color';
     LAMP_COLOR_2 = 'KontorSpot2_Color';
     LAMP_COLOR_3 = 'KontorSpot3_Color';
-    LAMP_NOISE   = 'KontorSpot1_Color';
     baseUrl_openhab_server = 'http://malabook:8081/rest/items/';
 }
 
@@ -68,15 +70,15 @@ const COLOR_ORANGE = 30;
 const COLOR_PURPLE = 270;
 
 let EventSource = require("eventsource");
-let doorIsClosed = false;
+let DingDongItemIsPresent = false;
 
 let device_ids = '' +
-    'device_ids=' + THINGSID_TOUCH_1 +
-    '&device_ids=' + THINGSID_TOUCH_2 +
-    '&device_ids=' + THINGSID_TOUCH_3 +
-    '&device_ids=' + THINGSID_TEMP_1 +
-    '&device_ids=' + THINGSID_PROX_1 +
-    '&device_ids=' + THINGSID_PROX_2;
+    'device_ids=' + DEVICE_ID_TOUCH_1 +
+    '&device_ids=' + DEVICE_ID_TOUCH_2 +
+    '&device_ids=' + DEVICE_ID_TOUCH_3 +
+    '&device_ids=' + DEVICE_ID_TEMPERATURE_1 +
+    '&device_ids=' + DEVICE_ID_PROXIMITY_ALARM +
+    '&device_ids=' + DEVICE_ID_PROXIMITY_DINGDONG;
 
 let event_types = '' +
     'event_types=objectPresent' +
@@ -88,7 +90,7 @@ let device_types = '' +
     '&device_types=touch' +
     '&device_types=temperature';
 
-let streamURL = DT_API_V2_URL + PROJECT_ID + '/' + DT_API_V2_STREAM_ALL + device_ids + "&" + event_types + '&' + device_types;
+let streamURL = DT_API_V2_URL + PROJECT_ID + '/' + DT_API_V2_STREAM + device_ids + "&" + event_types + '&' + device_types;
 
 let es = new EventSource(streamURL, { headers: { Authorization: BASIC_AUTH } } );
 
@@ -99,11 +101,11 @@ es.onmessage = function (data) {
         console.log(ts() + " jsonData: ", jsonData);
     }
 
-    let doBlinkPinkLamp = false;
-    let doBlinkPurpleLamp = false;
-    let doBlinkBlueLamp = false;
+    let doBlinkLamp1 = false;
+    let doBlinkLamp2 = false;
+    let doBlinkLamp3     = false;
     let doBlinkAlarm = false;
-    let doBlinkDoor = false;
+    let doBlinkDingDong = false;
 
     let event = jsonData.result.event;
     let event_type = event.eventType;
@@ -117,14 +119,14 @@ es.onmessage = function (data) {
     let thingId =  getDeviceId(event.targetName);
 
 
-    if (thingId === THINGSID_TOUCH_1) {
-        doBlinkPinkLamp = true;
-    } else if (thingId === THINGSID_TOUCH_2) {
-        doBlinkPurpleLamp = true;
-    } else if (thingId === THINGSID_TOUCH_3) {
-        doBlinkBlueLamp = true;
+    if (thingId === DEVICE_ID_TOUCH_1) {
+        doBlinkLamp1 = true;
+    } else if (thingId === DEVICE_ID_TOUCH_2) {
+        doBlinkLamp2 = true;
+    } else if (thingId === DEVICE_ID_TOUCH_3) {
+        doBlinkLamp3 = true;
 
-    } else if (thingId === THINGSID_PROX_1) {
+    } else if (thingId === DEVICE_ID_PROXIMITY_ALARM) {
         if ('PRESENT' === event.data.objectPresent.state) {
             if (debug) {
                 console.log(ts() + ' No alarm as long as object_present === TRUE');
@@ -136,41 +138,29 @@ es.onmessage = function (data) {
             doBlinkAlarm = true;
         }
 
-    } else if (thingId === THINGSID_PROX_2) {
+    } else if (thingId === DEVICE_ID_PROXIMITY_DINGDONG) {
         if ('PRESENT' === event.data.objectPresent.state) {
-            // object_present TRUE
-            if (doorIsClosed) {
-                // no change in status
-            } else {
-                // door is being closed
-                doorIsClosed = true;
+            if ( ! DingDongItemIsPresent ) {
+                DingDongItemIsPresent = true;
             }
         } else {
-            // NOT_PRESENT
-            if (doorIsClosed) {
-                // door is being opened
-                doBlinkDoor = true;
-                doorIsClosed = false;
-            } else {
-                // No change in status
+            if ( DingDongItemIsPresent ) {
+                doBlinkDingDong = true;
+                DingDongItemIsPresent = false;
             }
         }
     }
 
-    if (doBlinkPinkLamp) {
+    if (doBlinkLamp1) {
         blinkLamp1();
-    } else if (doBlinkPurpleLamp) {
+    } else if (doBlinkLamp2) {
         blinkLamp2();
-    } else if (doBlinkBlueLamp) {
+    } else if (doBlinkLamp3) {
         blinkLamp3();
     } else if (doBlinkAlarm) {
         blinkAlarmLamp();
-    } else if (doBlinkDoor) {
-        if (doorIsClosed) {
-            blinkLamp_DoorIsClosed();
-        } else {
-            blinkLamp_DoorIsOpened();
-        }
+    } else if (doBlinkDingDong) {
+        blinkLamp_DingDong();
     } else {
         if (debug) {
             console.log(ts() + ' Nada to blink for thingId: ' + thingId + "for event '" + event_type + "' ");
@@ -187,16 +177,16 @@ function blinkAlarmLamp() {
     let duration = LAMP_ALARM_DURATION;
     let maxCount = LAMP_ALARM_COUNTLOOP;
     if (debug) {
-        console.log('Send command to openHab for blinking ' + LAMP_NOISE +' in color RED ' + maxCount + ' times for ' + duration + ' second');
+        console.log('Send command to openHab for blinking ' + LAMP_COLOR_1 +' in color RED ' + maxCount + ' times for ' + duration + ' second');
     }
     if (isLamp1InUse) {
         if (debug) {
-            console.log(ts() + ' LAMP_NOISE is in use');
+            console.log(ts() + ' LAMP_COLOR_1 is in use');
         }
         return;
     }
     isLamp1InUse = true;
-    alarmRecursive(LAMP_NOISE, COLOR_RED, maxCount, count, duration);
+    alarmRecursive(LAMP_COLOR_1, COLOR_RED, maxCount, count, duration);
 }
 
 function alarmRecursive(hueId, color, maxCount, count, duration) {
@@ -229,7 +219,7 @@ function blinkLamp1() {
     setTimeout(() => {
         sendCommand(LAMP_COLOR_1, 'OFF');
         isLamp1InUse = false;
-    }, LAMP_LYSORGEL_DURATION);
+    }, LAMP_LIGHTORGAN_DURATION);
 }
 
 function blinkLamp2() {
@@ -247,7 +237,7 @@ function blinkLamp2() {
     setTimeout(() => {
         sendCommand(LAMP_COLOR_2, 'OFF');
         isLamp2InUse = false;
-    }, LAMP_LYSORGEL_DURATION);
+    }, LAMP_LIGHTORGAN_DURATION);
 }
 
 function blinkLamp3() {
@@ -265,10 +255,10 @@ function blinkLamp3() {
     setTimeout(() => {
         sendCommand(LAMP_COLOR_3, 'OFF');
         isLamp3InUse = false;
-    }, LAMP_LYSORGEL_DURATION);
+    }, LAMP_LIGHTORGAN_DURATION);
 }
 
-function blinkLamp_DoorIsClosed() {
+function blinkLamp_DingDong() {
     if (debug) {
         console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_3 + '"');
     }
@@ -283,25 +273,7 @@ function blinkLamp_DoorIsClosed() {
     setTimeout(() => {
         sendCommand(LAMP_COLOR_3, 'OFF');
         isLamp3InUse = false;
-    }, LAMP_DOOR_DURATION);
-}
-
-function blinkLamp_DoorIsOpened() {
-    if (debug) {
-        console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_3 + '"');
-    }
-    if (isLamp3InUse) {
-        if (debug) {
-            console.log(ts() + ' Lamp "' + LAMP_COLOR_3 + '" is in use, ignoring blink');
-        }
-        return;
-    }
-    isLamp3InUse = true;
-    sendCommand(LAMP_COLOR_3, COLOR_YELLOW + ',100,75');
-    setTimeout(() => {
-        sendCommand(LAMP_COLOR_3, 'OFF');
-        isLamp3InUse = false;
-    }, LAMP_DOOR_DURATION);
+    }, LAMP_DINGDONG_DURATION);
 }
 
 function sendCommand(hueId, command) {
@@ -310,7 +282,7 @@ function sendCommand(hueId, command) {
     xhr_sendCommand.addEventListener("readystatechange", function () {
         if (this.readyState === 4) {
             let res = this.responseText;
-            if (debug) {
+            if (trace) {
                 console.log(ts() + " Response: ", res);
             }
         }
