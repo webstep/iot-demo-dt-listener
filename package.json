@@ -9,7 +9,7 @@
   "author": "Tor Mala",
   "license": "MIT",
   "dependencies": {
-    "eventsource": "^1.0.5",
+    "eventsource": "^1.0.7",
     "xmlhttprequest": "^1.8.0"
   }
 }

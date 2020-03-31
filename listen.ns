@@ -11,22 +11,27 @@ Scenario: Light Organ
  - Lights a Lamp in different colors depending on which Touch-sensor that is used
 
 Scenario: Mona Lisa Alarm
- - HUDE-lamp LAMP_ALARM Blinks LAMP_ALARM_COUNTLOOP times.
+ - HUE-lamp LAMP_COLOR_1 Blinks LAMP_ALARM_COUNTLOOP times.
    Triggered by a proximity sensor emitting an Event with objectPresent.state = NOT_PRESENT, and used to be in state PRESENT.
 
 */
 importScripts = require('./importscripts.js').importScripts;
 importScripts('./apikey.ns');
 let XMLHttpRequest = require('xmlhttprequest').XMLHttpRequest;
+let util = require('util');
 
 const LAMP_LIGHTORGAN_DURATION = 1500; // time in ms
 const LAMP_DINGDONG_DURATION = 1000; //  time in ms
 const LAMP_ALARM_DURATION = 750; //  time in ms
 const LAMP_ALARM_COUNTLOOP = 5; // Alarm blinking 3 times
 
-const debug = true;
-const trace = false;
-const isMalaHome = true; // if listenForEvents is running @MalaHome
+const LOGLEVEL_FATAL = true;
+const LOGLEVEL_ERROR = true;
+const LOGLEVEL_INFO = true;
+const LOGLEVEL_DEBUG = true;
+const LOGLEVEL_TRACE = true;
+
+const isMalaHome = false; // if listenForEvents is running @MalaHome
 
 // The ID of the DT sensors to listen for events for
 const DEVICE_ID_TOUCH_1 = 'b6oiv957rihk096jph4g'; //
@@ -40,10 +45,10 @@ const DT_API_V2_URL = 'https://api.disruptive-technologies.com/v2beta1/projects/
 const DT_API_V2_STREAM = 'devices:stream?';
 
 
-let baseUrl_openhab_server = 'http://localhost:8081/rest/items/';
-let LAMP_COLOR_1 = 'hue_0210_0017882ae962_12_color';
-let LAMP_COLOR_2 = 'hue_0210_0017882ae962_9_color';
-let LAMP_COLOR_3 = 'hue_0210_0017882ae962_10_color';
+let baseUrl_openhab_server = 'http://localhost:8080/rest/items/';
+let LAMP_COLOR_1 = 'ColorLamp1_Color';
+let LAMP_COLOR_2 = 'ColorLamp2_Color';
+let LAMP_COLOR_3 = 'ColorLamp3_Color';
 
 if (isMalaHome) {
     LAMP_COLOR_1 = 'KontorSpot1_Color';
@@ -97,8 +102,8 @@ let es = new EventSource(streamURL, { headers: { Authorization: BASIC_AUTH } } )
 
 es.onmessage = function (data) {
     let jsonData = JSON.parse(data['data']);
-    if (debug) {
-        console.log(ts() + " jsonData: ", jsonData);
+    if (LOGLEVEL_TRACE) {
+        console.log( ts() + " jsonData: ", JSON.stringify(jsonData, null, ' ') );
     }
 
     let doBlinkLamp1 = false;
@@ -107,39 +112,38 @@ es.onmessage = function (data) {
     let doBlinkAlarm = false;
     let doBlinkDingDong = false;
 
-    let event = jsonData.result.event;
-    let event_type = event.eventType;
+    let dt_event = jsonData.result.event;
+    let dt_event_type = dt_event.eventType;
+    let device_id =  getDeviceId(dt_event.targetName);
 
-    if (debug) {
-        //const ts = jsonData.result.timestamp;
-        //console.log('TimeStamp: ' + ts + 'Checking thingId: ' + thingId + ", event_type: '" + event_type + "' ");
-        //console.log('JSON-data: \n' + JSON.stringify(jsonData.result));
+    if (LOGLEVEL_TRACE) {
+        const ts = dt_date2str_NO(dt_event.timestamp);
+        console.log(ts + ', Device_id: ' + device_id + ", event_type: '" + dt_event_type + "' ");
     }
 
-    let thingId =  getDeviceId(event.targetName);
 
 
-    if (thingId === DEVICE_ID_TOUCH_1) {
+    if (device_id === DEVICE_ID_TOUCH_1) {
         doBlinkLamp1 = true;
-    } else if (thingId === DEVICE_ID_TOUCH_2) {
+    } else if (device_id === DEVICE_ID_TOUCH_2) {
         doBlinkLamp2 = true;
-    } else if (thingId === DEVICE_ID_TOUCH_3) {
+    } else if (device_id === DEVICE_ID_TOUCH_3) {
         doBlinkLamp3 = true;
 
-    } else if (thingId === DEVICE_ID_PROXIMITY_ALARM) {
-        if ('PRESENT' === event.data.objectPresent.state) {
-            if (debug) {
+    } else if (device_id === DEVICE_ID_PROXIMITY_ALARM) {
+        if ('PRESENT' === dt_event.data.objectPresent.state) {
+            if (LOGLEVEL_TRACE) {
                 console.log(ts() + ' No alarm as long as object_present === TRUE');
             }
         } else {
-            if (debug) {
-                console.log('object_present is NOT_PRESENT' + event.data.objectPresent.state);
+            if (LOGLEVEL_INFO) {
+                console.log('object_present is NOT_PRESENT => Blink Alarm' + dt_event.data.objectPresent.state);
             }
             doBlinkAlarm = true;
         }
 
-    } else if (thingId === DEVICE_ID_PROXIMITY_DINGDONG) {
-        if ('PRESENT' === event.data.objectPresent.state) {
+    } else if (device_id === DEVICE_ID_PROXIMITY_DINGDONG) {
+        if ('PRESENT' === dt_event.data.objectPresent.state) {
             if ( ! DingDongItemIsPresent ) {
                 DingDongItemIsPresent = true;
             }
@@ -162,8 +166,8 @@ es.onmessage = function (data) {
     } else if (doBlinkDingDong) {
         blinkLamp_DingDong();
     } else {
-        if (debug) {
-            console.log(ts() + ' Nada to blink for thingId: ' + thingId + "for event '" + event_type + "' ");
+        if (LOGLEVEL_TRACE) {
+            console.log(ts() + ' Nada to blink for device_id: ' + device_id + "for event '" + dt_event_type + "' ");
         }
     }
 };
@@ -176,11 +180,11 @@ function blinkAlarmLamp() {
     let count = 0;
     let duration = LAMP_ALARM_DURATION;
     let maxCount = LAMP_ALARM_COUNTLOOP;
-    if (debug) {
+    if (LOGLEVEL_DEBUG) {
         console.log('Send command to openHab for blinking ' + LAMP_COLOR_1 +' in color RED ' + maxCount + ' times for ' + duration + ' second');
     }
     if (isLamp1InUse) {
-        if (debug) {
+        if (LOGLEVEL_INFO) {
             console.log(ts() + ' LAMP_COLOR_1 is in use');
         }
         return;
@@ -205,11 +209,11 @@ function alarmRecursive(hueId, color, maxCount, count, duration) {
 }
 
 function blinkLamp1() {
-    if (debug) {
+    if (LOGLEVEL_DEBUG) {
         console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_1 + '"');
     }
     if (isLamp1InUse) {
-        if (debug) {
+        if (LOGLEVEL_DEBUG) {
             console.log(ts() + ' Lamp "' + LAMP_COLOR_1 + '" is in use, ignoring blink');
         }
         return;
@@ -223,11 +227,11 @@ function blinkLamp1() {
 }
 
 function blinkLamp2() {
-    if (debug) {
+    if (LOGLEVEL_DEBUG) {
         console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_2 + '"');
     }
     if (isLamp2InUse) {
-        if (debug) {
+        if (LOGLEVEL_DEBUG) {
             console.log(ts() + ' Lamp "' + LAMP_COLOR_2 + '" is in use, ignoring blink');
         }
         return;
@@ -241,11 +245,11 @@ function blinkLamp2() {
 }
 
 function blinkLamp3() {
-    if (debug) {
+    if (LOGLEVEL_DEBUG) {
         console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_3 + '"');
     }
     if (isLamp3InUse) {
-        if (debug) {
+        if (LOGLEVEL_DEBUG) {
             console.log(ts() + ' Lamp "' + LAMP_COLOR_3 + '" is in use, ignoring blink');
         }
         return;
@@ -259,11 +263,11 @@ function blinkLamp3() {
 }
 
 function blinkLamp_DingDong() {
-    if (debug) {
+    if (LOGLEVEL_DEBUG) {
         console.log(ts() + ' Trying to blink Lamp "' + LAMP_COLOR_3 + '"');
     }
     if (isLamp3InUse) {
-        if (debug) {
+        if (LOGLEVEL_DEBUG) {
             console.log(ts() + ' Lamp "' + LAMP_COLOR_3 + '" is in use, ignoring blink');
         }
         return;
@@ -280,14 +284,21 @@ function sendCommand(hueId, command) {
     let xhr_sendCommand = new XMLHttpRequest();
     xhr_sendCommand.withCredentials = true;
     xhr_sendCommand.addEventListener("readystatechange", function () {
-        if (this.readyState === 4) {
-            let res = this.responseText;
-            if (trace) {
-                console.log(ts() + " Response: ", res);
+        if (this.readyState === this.DONE) {
+            if (this.status === 200) {
+                let res = this.responseText;
+                if (LOGLEVEL_TRACE) {
+                    console.log(ts() + " " + hueId + " " + this.status +  " OK => Response: ", res);
+                }
+            } else {
+                let res = this.responseText;
+                if (LOGLEVEL_ERROR) {
+                    console.log(ts() + " " + hueId + " " + this.status +  " " + this.statusText + " => Response: ", JSON.stringify(res, null, 2) );
+                }
             }
         }
     });
-    xhr_sendCommand.open('POST', baseUrl_openhab_server + hueId);
+    xhr_sendCommand.open('POST', baseUrl_openhab_server + hueId + 'cantfindme');
     xhr_sendCommand.setRequestHeader("accept", "application/json");
     xhr_sendCommand.send(command);
 }
@@ -299,6 +310,14 @@ function ts() {
 function date2str_NO(d) {
     return fix2digit(d.getDate()) + '.' + fixMonth(d.getMonth()) + '.' + d.getFullYear() + ' ' +
         fix2digit(d.getHours()) + ':' + fix2digit(d.getMinutes()) + ':' + fix2digit(d.getSeconds());
+}
+function dt_date2str_NO(strDate) {
+    if (util.isString(strDate)) {
+        return strDate.substr(8,2) + '.' +  strDate.substr(5,2) + '.' + strDate.substr(0,4) + ' ' +
+            strDate.substr(11,10) + strDate.substr(29,1);
+    } else {
+        return strDate;
+    }
 }
 function fixMonth(num) {
     let month = num + 1;
